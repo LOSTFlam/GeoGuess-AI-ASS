@@ -1,16 +1,19 @@
 import React, { useCallback } from 'react';
-import { Upload, Image as ImageIcon, X } from 'lucide-react';
-import { UploadedImage } from '../types';
+import { Upload, X } from 'lucide-react';
+import { UploadedImage, Language, TRANSLATIONS } from '../types';
 
 interface ImageUploaderProps {
   onImageSelected: (image: UploadedImage) => void;
   onClear: () => void;
   currentImage: UploadedImage | null;
   disabled: boolean;
+  language: Language;
 }
 
-const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, onClear, currentImage, disabled }) => {
+const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, onClear, currentImage, disabled, language }) => {
   
+  const t = TRANSLATIONS[language];
+
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -30,7 +33,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, onClear,
 
   const processFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('Пожалуйста, загрузите изображение.');
+      alert('File must be an image');
       return;
     }
 
@@ -61,7 +64,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, onClear,
           <button 
             onClick={onClear}
             className="absolute top-4 right-4 p-2 bg-red-500/80 hover:bg-red-600 text-white rounded-full transition-colors backdrop-blur-sm"
-            title="Удалить фото"
+            title={t.delete}
           >
             <X size={20} />
           </button>
@@ -83,11 +86,11 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, onClear,
         <div className="p-4 bg-slate-900 rounded-full mb-4 shadow-xl border border-slate-700">
           <Upload className="w-8 h-8 text-emerald-400" />
         </div>
-        <p className="mb-2 text-sm text-slate-300 font-medium">
-          <span className="font-semibold text-emerald-400">Нажмите</span>, перетащите или <span className="font-semibold text-emerald-400">Ctrl+V</span>
+        <p className="mb-2 text-sm text-slate-300 font-medium text-center px-4">
+          {t.dragDrop}
         </p>
         <p className="text-xs text-slate-500">
-          PNG, JPG, WEBP (макс. 10MB)
+          {t.formats}
         </p>
         <input 
           type="file" 

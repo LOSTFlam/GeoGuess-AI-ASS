@@ -1,14 +1,16 @@
 import React, { useMemo } from 'react';
 import { MapPin, ExternalLink, Navigation } from 'lucide-react';
-import { AnalysisResult, MapLocation } from '../types';
+import { AnalysisResult, MapLocation, Language, TRANSLATIONS } from '../types';
 import MapVisualization from './MapVisualization';
 
 interface ResultDisplayProps {
   result: AnalysisResult;
+  language: Language;
 }
 
-const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
-  
+const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, language }) => {
+  const t = TRANSLATIONS[language];
+
   // Helper to format text with bold headers if markdown is not fully parsed
   const formatText = (text: string) => {
     return text.split('\n').map((line, i) => {
@@ -23,14 +25,30 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
 
   const mapChunks = result.groundingChunks.filter(c => c.maps);
 
-  // Extract coordinates from map chunks URIs
+  // Combine explicit coordinates with grounding chunks
   const locations: MapLocation[] = useMemo(() => {
     const locs: MapLocation[] = [];
+    
+    // 1. Add the AI's "Best Guess" from JSON first (High priority)
+    if (result.coordinates) {
+      locs.push({
+        lat: result.coordinates.lat,
+        lng: result.coordinates.lng,
+        title: result.coordinates.locationName || t.unknown,
+        uri: `https://www.google.com/maps/search/?api=1&query=${result.coordinates.lat},${result.coordinates.lng}`
+      });
+    }
+
+    // 2. Add Grounding Chunks
     const seen = new Set<string>();
+    // Add the best guess to seen to avoid duplicates if grounding returns exact same
+    if (result.coordinates) {
+        seen.add(`${result.coordinates.lat.toFixed(3)},${result.coordinates.lng.toFixed(3)}`);
+    }
 
     mapChunks.forEach(chunk => {
       const uri = chunk.maps?.uri;
-      const title = chunk.maps?.title || "Неизвестное место";
+      const title = chunk.maps?.title || t.unknown;
       
       if (!uri) return;
 
@@ -39,7 +57,6 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
       let found = false;
 
       // Pattern 1: @lat,lng
-      // Example: .../place/Name/@34.123,-118.123,17z/...
       const atMatch = uri.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
       if (atMatch) {
         lat = parseFloat(atMatch[1]);
@@ -54,7 +71,6 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
           lng = parseFloat(qMatch[2]);
           found = true;
         }
-        // Pattern 3: !3d... !4d... (Google Maps embed/data params)
         else {
              const dataMatch = uri.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
              if (dataMatch) {
@@ -66,7 +82,6 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
       }
 
       if (found) {
-        // Simple dedup based on very close coordinates to avoid stacking markers
         const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
         if (!seen.has(key)) {
           seen.add(key);
@@ -76,7 +91,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
     });
 
     return locs;
-  }, [mapChunks]);
+  }, [mapChunks, result.coordinates, t.unknown]);
 
   return (
     <div className="w-full space-y-6 animate-fadeIn">
@@ -85,7 +100,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
         <div className="animate-slideUp">
              <div className="flex items-center gap-2 mb-3">
                  <MapPin className="w-5 h-5 text-emerald-500" />
-                 <h3 className="text-lg font-semibold text-slate-200">Визуализация на карте</h3>
+                 <h3 className="text-lg font-semibold text-slate-200">{t.mapVis}</h3>
              </div>
              <MapVisualization locations={locations} />
         </div>
@@ -95,7 +110,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
       <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-6 shadow-xl backdrop-blur-sm">
         <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
           <Navigation className="w-5 h-5 text-emerald-400" />
-          Анализ GeoGuessr
+          {t.analysisHeader}
         </h2>
         <div className="prose prose-invert prose-sm max-w-none text-slate-300 whitespace-pre-wrap">
           {formatText(result.text)}
@@ -107,7 +122,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
             <ExternalLink className="w-5 h-5 text-blue-400" />
-            Ссылки на найденные места
+            {t.linksHeader}
           </h3>
           <div className="grid grid-cols-1 gap-4">
             {mapChunks.map((chunk, idx) => (
@@ -121,7 +136,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
                 <div className="flex justify-between items-start">
                   <div>
                     <h4 className="font-bold text-emerald-300 group-hover:text-emerald-200 transition-colors">
-                      {chunk.maps?.title || "Местоположение"}
+                      {chunk.maps?.title || t.unknown}
                     </h4>
                     <p className="text-xs text-slate-500 mt-1 truncate max-w-[250px] sm:max-w-md">
                       {chunk.maps?.uri}

@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, Map, Sparkles, AlertCircle } from 'lucide-react';
+import { Globe, Map, Sparkles, AlertCircle, Languages } from 'lucide-react';
 import ImageUploader from './components/ImageUploader';
 import ResultDisplay from './components/ResultDisplay';
 import { analyzeLocation } from './services/gemini';
-import { UploadedImage, AnalysisResult, AppStatus } from './types';
+import { UploadedImage, AnalysisResult, AppStatus, Language, TRANSLATIONS } from './types';
 
 const App: React.FC = () => {
   const [image, setImage] = useState<UploadedImage | null>(null);
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [language, setLanguage] = useState<Language>('ru');
+
+  const t = TRANSLATIONS[language];
 
   const handleImageSelected = (uploadedImage: UploadedImage) => {
     setImage(uploadedImage);
@@ -32,13 +35,17 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      const analysisData = await analyzeLocation(image.base64, image.mimeType);
+      const analysisData = await analyzeLocation(image.base64, image.mimeType, language);
       setResult(analysisData);
       setStatus(AppStatus.SUCCESS);
     } catch (err: any) {
-      setError(err.message || "Произошла ошибка при анализе.");
+      setError(err.message || t.error);
       setStatus(AppStatus.ERROR);
     }
+  };
+
+  const toggleLanguage = () => {
+    setLanguage(prev => prev === 'ru' ? 'en' : 'ru');
   };
 
   // Handle global paste events
@@ -79,7 +86,7 @@ const App: React.FC = () => {
     return () => {
       window.removeEventListener('paste', handlePaste);
     };
-  }, [status]); // Re-bind if status changes (to update the closure check)
+  }, [status]); 
 
   return (
     <div className="min-h-screen bg-slate-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black text-slate-100 selection:bg-emerald-500/30">
@@ -90,12 +97,29 @@ const App: React.FC = () => {
             <div className="p-2 bg-gradient-to-tr from-emerald-500 to-cyan-500 rounded-lg shadow-lg shadow-emerald-500/20">
               <Globe className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-white">
+            <h1 className="text-xl font-bold tracking-tight text-white hidden sm:block">
               GeoGuessr <span className="text-emerald-400">AI</span> Assistant
             </h1>
+            <h1 className="text-xl font-bold tracking-tight text-white sm:hidden">
+              GeoGuessr <span className="text-emerald-400">AI</span>
+            </h1>
           </div>
-          <div className="flex items-center gap-4 text-xs font-mono text-slate-500">
-            <span className="hidden sm:block">POWERED BY GEMINI 2.5</span>
+          <div className="flex items-center gap-4">
+             {/* LOSTFlam Glowing Text */}
+            <span className="font-mono text-sm tracking-wider flex items-center gap-2">
+               <span className="text-slate-500 text-xs hidden sm:inline">{t.created}</span>
+               <span className="font-bold text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse">
+                 LOSTFlam
+               </span>
+            </span>
+
+            <button 
+              onClick={toggleLanguage}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors text-sm font-medium"
+            >
+              <Languages className="w-4 h-4 text-emerald-400" />
+              <span>{language.toUpperCase()}</span>
+            </button>
           </div>
         </div>
       </header>
@@ -109,7 +133,7 @@ const App: React.FC = () => {
             <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 shadow-xl">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-slate-200">
                 <Map className="w-5 h-5 text-cyan-400" />
-                Загрузка скриншота
+                {t.uploadTitle}
               </h2>
               
               <ImageUploader 
@@ -117,6 +141,7 @@ const App: React.FC = () => {
                 onImageSelected={handleImageSelected}
                 onClear={handleClear}
                 disabled={status === AppStatus.ANALYZING}
+                language={language}
               />
 
               {image && status !== AppStatus.ANALYZING && status !== AppStatus.SUCCESS && (
@@ -125,7 +150,7 @@ const App: React.FC = () => {
                   className="w-full mt-6 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
                 >
                   <Sparkles className="w-5 h-5" />
-                  Анализировать локацию
+                  {t.analyzeBtn}
                 </button>
               )}
 
@@ -135,7 +160,7 @@ const App: React.FC = () => {
                   className="w-full mt-6 bg-slate-700 text-slate-400 cursor-not-allowed font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2"
                 >
                   <div className="w-5 h-5 border-2 border-slate-400 border-t-emerald-400 rounded-full animate-spin"></div>
-                  Анализирую признаки...
+                  {t.analyzingBtn}
                 </button>
               )}
 
@@ -149,12 +174,11 @@ const App: React.FC = () => {
 
             {/* Tips Section */}
             <div className="hidden lg:block bg-slate-800/20 border border-slate-800 rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">Советы по съемке</h3>
+              <h3 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">{t.tipsTitle}</h3>
               <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
-                <li>Захватите дорожные знаки крупным планом</li>
-                <li>Покажите разметку дороги и бордюры</li>
-                <li>Включите в кадр столбы ЛЭП и архитектуру</li>
-                <li>Солнце и тени помогают определить полушарие</li>
+                {t.tips.map((tip, idx) => (
+                  <li key={idx}>{tip}</li>
+                ))}
               </ul>
             </div>
           </div>
@@ -164,10 +188,10 @@ const App: React.FC = () => {
             {status === AppStatus.IDLE && !result && (
               <div className="h-full flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-slate-800 rounded-3xl bg-slate-800/20">
                 <Globe className="w-16 h-16 text-slate-700 mb-4" />
-                <h3 className="text-xl font-semibold text-slate-500">Ожидание загрузки</h3>
+                <h3 className="text-xl font-semibold text-slate-500">{t.waitingTitle}</h3>
                 <p className="text-slate-600 mt-2 max-w-md">
-                  Загрузите скриншот из игры, чтобы ИИ определил ваше местоположение на основе визуальных данных. <br/>
-                  <span className="text-emerald-500 font-mono text-xs mt-2 block bg-slate-900/50 py-1 px-2 rounded-lg w-fit mx-auto">Поддерживается Ctrl+V</span>
+                  {t.waitingDesc} <br/>
+                  <span className="text-emerald-500 font-mono text-xs mt-2 block bg-slate-900/50 py-1 px-2 rounded-lg w-fit mx-auto">{t.pasteHint}</span>
                 </p>
               </div>
             )}
@@ -181,14 +205,14 @@ const App: React.FC = () => {
                    </div>
                  </div>
                  <div className="text-center space-y-2 animate-pulse">
-                   <h3 className="text-xl font-bold text-white">Изучаю местность...</h3>
-                   <p className="text-slate-400">Смотрю на знаки, растительность и архитектуру</p>
+                   <h3 className="text-xl font-bold text-white">{t.analyzingTitle}</h3>
+                   <p className="text-slate-400">{t.analyzingDesc}</p>
                  </div>
                </div>
             )}
 
             {result && (
-              <ResultDisplay result={result} />
+              <ResultDisplay result={result} language={language} />
             )}
           </div>
 

@@ -1,31 +1,44 @@
 import { GoogleGenAI } from "@google/genai";
-import { AnalysisResult, GroundingChunk } from "../types";
+import { AnalysisResult, GroundingChunk, Language, Coordinates } from "../types";
 
 // Initialize the client
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeLocation = async (
   base64Image: string,
-  mimeType: string
+  mimeType: string,
+  language: Language
 ): Promise<AnalysisResult> => {
   try {
-    // Determine model. gemini-2.5-flash supports googleMaps grounding tool and is fast.
     const modelId = "gemini-2.5-flash";
 
+    const langInstruction = language === 'ru' 
+      ? "Отвечай на РУССКОМ языке." 
+      : "Answer in ENGLISH.";
+
     const prompt = `
-      Ты профессиональный игрок в GeoGuessr. Проанализируй это изображение, чтобы определить точное местоположение.
+      You are a professional GeoGuessr player. Analyze this image to determine the exact location.
+      ${langInstruction}
       
-      Ищи следующие подсказки:
-      1. Дорожная разметка, сторона движения.
-      2. Дорожные знаки (шрифты, цвета, форма, обратная сторона).
-      3. Язык и письменность.
-      4. Архитектура, столбы ЛЭП, болларды (столбики).
-      5. Растительность, почва, климат.
-      6. "Google Car meta" (если видно части машины).
+      Look for these specific clues:
+      1. Road markings, driving side.
+      2. Road signs (fonts, colors, shapes, reverse side).
+      3. Language and scripts.
+      4. Architecture, utility poles (holy poles), bollards.
+      5. Vegetation, soil color, climate.
+      6. "Google Car meta" (if visible).
       
-      Сначала дай краткий вывод: Страна, Регион, Город (если возможно).
-      Затем подробно опиши найденные подсказки.
-      В конце дай координаты или ссылку на карту через Google Maps grounding.
+      First, provide a structured analysis.
+      
+      CRITICAL: At the very end of your response, you MUST provide a JSON block with the estimated best guess coordinates. 
+      Format:
+      \`\`\`json
+      {
+        "lat": 12.3456,
+        "lng": -65.4321,
+        "locationName": "City, Country"
+      }
+      \`\`\`
     `;
 
     const response = await ai.models.generateContent({
@@ -46,22 +59,37 @@ export const analyzeLocation = async (
       config: {
         // Enable Google Maps grounding to find real places
         tools: [{ googleMaps: {} }],
-        temperature: 0.4, // Lower temperature for more analytical/factual responses
+        temperature: 0.4, 
       },
     });
 
-    const text = response.text || "Не удалось получить текстовый ответ.";
+    let text = response.text || "";
     
-    // Extract grounding chunks if available
+    // Extract JSON coordinates from text if present
+    let coordinates: Coordinates | undefined;
+    const jsonMatch = text.match(/```json([\s\S]*?)```/);
+    
+    if (jsonMatch && jsonMatch[1]) {
+      try {
+        coordinates = JSON.parse(jsonMatch[1]);
+        // Remove the JSON block from the display text to keep it clean
+        text = text.replace(jsonMatch[0], '').trim();
+      } catch (e) {
+        console.error("Failed to parse coordinates JSON", e);
+      }
+    }
+
+    // Extract grounding chunks
     const groundingChunks = (response.candidates?.[0]?.groundingMetadata?.groundingChunks || []) as GroundingChunk[];
 
     return {
       text,
       groundingChunks,
+      coordinates
     };
 
   } catch (error) {
     console.error("Gemini API Error:", error);
-    throw new Error("Не удалось проанализировать изображение. Проверьте API ключ и попробуйте снова.");
+    throw new Error("API Error");
   }
 };
